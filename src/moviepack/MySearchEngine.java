@@ -9,8 +9,6 @@ public class MySearchEngine {
 
     public MySearchEngine(ArrayList<Movie> movies) {
         this.movies = movies;
-
-        // Run calculations when object is created
         calculateTF();
         calculateIDF();
     }
@@ -21,8 +19,11 @@ public class MySearchEngine {
         TreeMap<String, Integer> termCounts = new TreeMap<>();
 
         for (Movie m : this.movies) {
-            String overview = m.getOverview().toLowerCase();
-            String[] terms = overview.split("\\s+");
+            // ✅ Include title + overview, lowercase, and clean punctuation
+            String text = (m.getTitle() + " " + m.getOverview())
+                    .toLowerCase()
+                    .replaceAll("[^a-z0-9 ]", " ");
+            String[] terms = text.split("\\s+");
             TreeSet<String> uniqueTerms = new TreeSet<>();
 
             for (String term : terms) {
@@ -31,16 +32,15 @@ public class MySearchEngine {
                 uniqueTerms.add(term);
             }
 
-            // Count in how many movies each word appears
             for (String uniqueTerm : uniqueTerms) {
                 termCounts.put(uniqueTerm, termCounts.getOrDefault(uniqueTerm, 0) + 1);
             }
         }
 
-        // Compute IDF values using log(totalMovies / count)
+        // ✅ Use smoothed log to avoid infinity/negatives for rare words
         for (Map.Entry<String, Integer> e : termCounts.entrySet()) {
             double count = e.getValue();
-            double idfValue = Math.log(totalMovies / count);
+            double idfValue = Math.log((totalMovies + 1.0) / (count + 1.0)) + 1.0;
             idf.put(e.getKey(), idfValue);
         }
     }
@@ -48,8 +48,11 @@ public class MySearchEngine {
     /** Calculates Term Frequency for each movie */
     private void calculateTF() {
         for (Movie m : movies) {
-            String overview = m.getOverview().toLowerCase();
-            String[] words = overview.split("\\s+");
+            // ✅ Include title + overview, lowercase, and remove punctuation
+            String text = (m.getTitle() + " " + m.getOverview())
+                    .toLowerCase()
+                    .replaceAll("[^a-z0-9 ]", " ");
+            String[] words = text.split("\\s+");
 
             TreeMap<String, Double> innerMap = new TreeMap<>();
             int totalWords = 0;
@@ -61,7 +64,7 @@ public class MySearchEngine {
                 }
             }
 
-            // normalize frequencies
+            // Normalize frequencies
             for (String w : innerMap.keySet()) {
                 innerMap.put(w, innerMap.get(w) / totalWords);
             }
@@ -70,11 +73,16 @@ public class MySearchEngine {
         }
     }
 
-    /** Calculates the relevance score for one movie and one query */
+    /** Determines relevance of a movie using TF-IDF values */
     private double relevance(String query, Movie m) {
-        String[] queryTerms = query.toLowerCase().split(" ");
-        double score = 0.0;
+        // Clean query the same way as indexed text
+        // maybe superstitious
+        String[] queryTerms = query.toLowerCase()
+                .replaceAll("[^a-z0-9 ]", " ")
+                .split("\\s+");
 
+        double baseScore = 0.0;
+        int matchCount = 0;
         TreeMap<String, Double> movieTF = tf.get(m);
         if (movieTF == null) return 0.0;
 
@@ -83,13 +91,24 @@ public class MySearchEngine {
 
             double tfValue = movieTF.getOrDefault(term, 0.0);
             double idfValue = idf.getOrDefault(term, 0.0);
-            score += tfValue * idfValue;
+
+            if (tfValue > 0) matchCount++;
+            baseScore += tfValue * idfValue;
         }
 
-        return score;
+        // reward multi-term matches (because I think the program is possessed and wasn't working properly without it idk vro)
+        if (matchCount > 1) {
+            double bonus = 1.0 + 0.25 * (matchCount - 1);
+            baseScore *= bonus;
+        }
+        if (matchCount == queryTerms.length && matchCount > 1) {
+            baseScore *= 1.5;
+        }
+
+        return baseScore;
     }
 
-    /** Finds and prints the top 5 most relevant movies for a query */
+    /** Find and print the top 5 most relevant movies for a query */
     public void search(String query) {
         HashMap<Movie, Double> scores = new HashMap<>();
 
