@@ -1,3 +1,4 @@
+package moviepack;
 import moviepack.Movie;
 import java.util.ArrayList;
 import java.util.Map;
@@ -49,7 +50,32 @@ public class MySearchEngine {
         }
     }
 
-    private double relevance(String query, Movie m){ return 0.0;};
+    private double relevance(String query, Movie m) {
+        String[] queryTerms = query.toLowerCase().split(" ");
+        double score = 0.0;
+
+        TreeMap<String, Double> movieTF = tf.get(m);
+
+        for (String term : queryTerms) {
+            if (term.isBlank()) continue;
+
+            // get TF and IDF values safely
+            double tfValue = 0.0;
+            if (movieTF.containsKey(term)) {
+                tfValue = movieTF.get(term);
+            }
+
+            double idfValue = 0.0;
+            if (idf.containsKey(term)) {
+                idfValue = idf.get(term);
+            }
+
+            // add to total score (TF * IDF)
+            score += tfValue * idfValue;
+        }
+
+        return score;
+    }
 
     public void search(String query){
 
