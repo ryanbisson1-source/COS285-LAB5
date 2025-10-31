@@ -26,7 +26,9 @@ public class MySearchEngine {
     private void calculateTF() {
         for (Movie m : movies) {
             String overview = m.getOverview().toLowerCase();
-            String[] words = overview.split("\\s+");
+            String title = m.getTitle().toLowerCase();
+            String allText = overview + " " + title;
+            String[] words = allText.split("\\s+");
             TreeMap<String, Double> innerMap = new TreeMap<>();
 
             // count how many times each word appears
@@ -100,6 +102,7 @@ public class MySearchEngine {
             if (idf.containsKey(term)) idfValue = idf.get(term);
 
             score += tfValue * idfValue;
+
         }
         return score;
     }
@@ -113,7 +116,10 @@ public class MySearchEngine {
         for (Movie m : movies) {
             double score = relevance(query, m);
             scores.put(m, score);
+
+
         }
+
 
         List<Map.Entry<Movie, Double>> results = sortedByValue(scores, 5);
         printSearchResults(query, results);

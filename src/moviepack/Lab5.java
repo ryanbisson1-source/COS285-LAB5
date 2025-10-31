@@ -9,10 +9,7 @@ import java.util.ArrayList;
  */
 public class Lab5 {
     public static void main(String[] args) throws IOException {
-        //String tsv = args[0];
-        Scanner scnr = new Scanner(System.in);
-        System.out.println("Enter path to movie TSV file:");
-        String tsv = scnr.nextLine();
+        String tsv = args[0];
         ArrayList<Movie> movies = Movie.readMovies(tsv);
 
         // Time creation of the search engine
@@ -25,7 +22,7 @@ public class Lab5 {
             "harry potter",
             "small town in maine",
             "world war",
-            "john mcclanes",
+            "john mcclane",
             "bruce wayne"
         };
 
