@@ -1,135 +1,149 @@
 package moviepack;
 
 import java.util.*;
+import moviepack.Movie;
 
 public class MySearchEngine {
-    private TreeMap<Movie, TreeMap<String, Double>> tf = new TreeMap<>();
-    private TreeMap<String, Double> idf = new TreeMap<>();
+
+    private TreeMap<Movie, TreeMap<String, Double>> tf;
+    private TreeMap<String, Double> idf;
     private final ArrayList<Movie> movies;
 
     public MySearchEngine(ArrayList<Movie> movies) {
         this.movies = movies;
+        this.tf = new TreeMap<>();
+        this.idf = new TreeMap<>();
+
+        // call both calculations when the engine is created
         calculateTF();
         calculateIDF();
     }
 
-    /** Calculates Inverse Document Frequency (IDF) */
-    private void calculateIDF() {
-        double totalMovies = this.movies.size();
-        TreeMap<String, Integer> termCounts = new TreeMap<>();
-
-        for (Movie m : this.movies) {
-            // ✅ Include title + overview, lowercase, and clean punctuation
-            String text = (m.getTitle() + " " + m.getOverview())
-                    .toLowerCase()
-                    .replaceAll("[^a-z0-9 ]", " ");
-            String[] terms = text.split("\\s+");
-            TreeSet<String> uniqueTerms = new TreeSet<>();
-
-            for (String term : terms) {
-                term = term.trim();
-                if (term.isEmpty()) continue;
-                uniqueTerms.add(term);
-            }
-
-            for (String uniqueTerm : uniqueTerms) {
-                termCounts.put(uniqueTerm, termCounts.getOrDefault(uniqueTerm, 0) + 1);
-            }
-        }
-
-        // ✅ Use smoothed log to avoid infinity/negatives for rare words
-        for (Map.Entry<String, Integer> e : termCounts.entrySet()) {
-            double count = e.getValue();
-            double idfValue = Math.log((totalMovies + 1.0) / (count + 1.0)) + 1.0;
-            idf.put(e.getKey(), idfValue);
-        }
-    }
-
-    /** Calculates Term Frequency for each movie */
+    /**
+     * Calculate the term frequency (TF) for each word in each movie overview.
+     * tf(w, m) = frequency of w in m / total number of words in m
+     */
     private void calculateTF() {
         for (Movie m : movies) {
-            // ✅ Include title + overview, lowercase, and remove punctuation
-            String text = (m.getTitle() + " " + m.getOverview())
-                    .toLowerCase()
-                    .replaceAll("[^a-z0-9 ]", " ");
-            String[] words = text.split("\\s+");
-
+            String overview = m.getOverview().toLowerCase();
+            String[] words = overview.split("\\s+");
             TreeMap<String, Double> innerMap = new TreeMap<>();
-            int totalWords = 0;
 
+            // count how many times each word appears
             for (String w : words) {
-                if (!w.isBlank()) {
-                    totalWords++;
-                    innerMap.put(w, innerMap.getOrDefault(w, 0.0) + 1.0);
-                }
+                w = w.replaceAll("^[^a-z0-9]+|[^a-z0-9]+$", "");
+                if (w.isEmpty()) continue;
+                innerMap.put(w, innerMap.getOrDefault(w, 0.0) + 1.0);
             }
 
-            // Normalize frequencies
-            for (String w : innerMap.keySet()) {
-                innerMap.put(w, innerMap.get(w) / totalWords);
+            // divide counts by total number of words to get frequency
+            int totalWords = Math.max(1, words.length);
+            for (String key : innerMap.keySet()) {
+                innerMap.put(key, innerMap.get(key) / totalWords);
             }
 
+            // store this inner map for the movie
             tf.put(m, innerMap);
         }
     }
 
-    /** Determines relevance of a movie using TF-IDF values */
-    private double relevance(String query, Movie m) {
-        // Clean query the same way as indexed text
-        // maybe superstitious
-        String[] queryTerms = query.toLowerCase()
-                .replaceAll("[^a-z0-9 ]", " ")
-                .split("\\s+");
+    /**
+     * Calculate the inverse document frequency (IDF) for each unique term.
+     * idf(w) = log(|M| / |{m ∈ M : w ∈ m}|)
+     */
+    private void calculateIDF() {
+        double totalMovies = this.movies.size();
+        TreeMap<String, Integer> term_counts = new TreeMap<>();
 
-        double baseScore = 0.0;
-        int matchCount = 0;
-        TreeMap<String, Double> movieTF = tf.get(m);
-        if (movieTF == null) return 0.0;
+        for (Movie m : this.movies) {
+            String overview = m.getOverview().toLowerCase();
+            String title = m.getTitle().toLowerCase();
+            String allWords = overview + " " + title;
 
-        for (String term : queryTerms) {
-            if (term.isBlank()) continue;
+            String[] tokens = allWords.split("\\s+");
+            TreeSet<String> unique_terms = new TreeSet<>();
 
-            double tfValue = movieTF.getOrDefault(term, 0.0);
-            double idfValue = idf.getOrDefault(term, 0.0);
+            for (String term : tokens) {
+                term = term.replaceAll("^[^a-z0-9]+|[^a-z0-9]+$", "");
+                if (term.isEmpty()) continue;
+                unique_terms.add(term);
+            }
 
-            if (tfValue > 0) matchCount++;
-            baseScore += tfValue * idfValue;
+            for (String unique_term : unique_terms) {
+                term_counts.put(unique_term, term_counts.getOrDefault(unique_term, 0) + 1);
+            }
         }
 
-        // reward multi-term matches (because I think the program is possessed and wasn't working properly without it idk vro)
-        if (matchCount > 1) {
-            double bonus = 1.0 + 0.25 * (matchCount - 1);
-            baseScore *= bonus;
+        for (Map.Entry<String, Integer> e : term_counts.entrySet()) {
+            double term_count = e.getValue();
+            double value = Math.log(totalMovies / term_count);
+            idf.put(e.getKey(), value);
         }
-        if (matchCount == queryTerms.length && matchCount > 1) {
-            baseScore *= 1.5;
-        }
-
-        return baseScore;
     }
 
-    /** Find and print the top 5 most relevant movies for a query */
+    /**
+     * Compute the relevance between a query and a movie using TF × IDF
+     */
+    private double relevance(String query, Movie m) {
+        String[] queryTerms = query.toLowerCase().split(" ");
+        double score = 0.0;
+        TreeMap<String, Double> movieTF = tf.get(m);
+
+        for (String term : queryTerms) {
+            term = term.replaceAll("^[^a-z0-9]+|[^a-z0-9]+$", "");
+            if (term.isEmpty()) continue;
+
+            double tfValue = 0.0;
+            if (movieTF.containsKey(term)) tfValue = movieTF.get(term);
+
+            double idfValue = 0.0;
+            if (idf.containsKey(term)) idfValue = idf.get(term);
+
+            score += tfValue * idfValue;
+        }
+        return score;
+    }
+
+    /**
+     * Perform a search and print the top-5 most relevant movies
+     */
     public void search(String query) {
-        HashMap<Movie, Double> scores = new HashMap<>();
+        TreeMap<Movie, Double> scores = new TreeMap<>();
 
         for (Movie m : movies) {
-            double s = relevance(query, m);
-            scores.put(m, s);
+            double score = relevance(query, m);
+            scores.put(m, score);
         }
 
-        // Sort by score descending
-        List<Map.Entry<Movie, Double>> sorted = new ArrayList<>(scores.entrySet());
-        sorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        List<Map.Entry<Movie, Double>> results = sortedByValue(scores, 5);
+        printSearchResults(query, results);
+    }
 
-        System.out.println("\nTop 5 results for query: \"" + query + "\"");
+    /** Sort map entries by value (descending) and return top-k results */
+    private List<Map.Entry<Movie, Double>> sortedByValue(TreeMap<Movie, Double> treeMap, int topK) {
+        List<Map.Entry<Movie, Double>> list = new ArrayList<>(treeMap.entrySet());
+        Collections.sort(list, new Comparator<Map.Entry<Movie, Double>>() {
+            @Override
+            public int compare(Map.Entry<Movie, Double> o1, Map.Entry<Movie, Double> o2) {
+                return o2.getValue().compareTo(o1.getValue());
+            }
+        });
 
+        int counter = 0;
+        List<Map.Entry<Movie, Double>> results = new ArrayList<>();
+        while (counter < topK && counter < list.size()) {
+            results.add(Map.entry(list.get(counter).getKey(), list.get(counter).getValue()));
+            counter++;
+        }
+        return results;
+    }
+
+    /** Print search results */
+    private void printSearchResults(String query, List<Map.Entry<Movie, Double>> results) {
+        System.out.println("Results for " + query);
         int rank = 1;
-        for (Map.Entry<Movie, Double> entry : sorted) {
-            if (rank > 5) break;
-            Movie m = entry.getKey();
-            double score = entry.getValue();
-            System.out.printf("%d. %s (%.6f)\n   %s\n\n",
-                    rank, m.getTitle(), score, m.getOverview());
+        for (Map.Entry<Movie, Double> entry : results) {
+            System.out.println(rank + ": " + entry.getKey().getTitle() + "\t" + entry.getKey().getOverview());
             rank++;
         }
     }

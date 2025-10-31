@@ -1,5 +1,5 @@
 package moviepack;
-
+import java.util.Scanner;
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -10,7 +10,9 @@ import java.util.ArrayList;
 public class Lab5 {
     public static void main(String[] args) throws IOException {
         //String tsv = args[0];
-        String tsv = "C:\\Users\\Crew Win\\Documents\\GitHub\\COS285-LAB5\\src\\moviepack\\imdb_movies.tsv";
+        Scanner scnr = new Scanner(System.in);
+        System.out.println("Enter path to movie TSV file:");
+        String tsv = scnr.nextLine();
         ArrayList<Movie> movies = Movie.readMovies(tsv);
 
         // Time creation of the search engine

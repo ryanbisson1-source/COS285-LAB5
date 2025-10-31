@@ -47,7 +47,7 @@ public class Movie implements Comparable<Movie> {
 
         String line = br.readLine(); // skip header
         while ((line = br.readLine()) != null) {
-            String[] parts = line.split("\t");
+           String[] parts = line.split("\t", 7);
             if (parts.length == 7) {
                 String title = parts[0].trim();
                 double votes = Double.parseDouble(parts[1].trim());
